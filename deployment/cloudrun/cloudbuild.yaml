@@ -1,0 +1,60 @@
+steps:
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Create Cloud Deploy Release'
+    script: |
+      #!/usr/bin/env bash
+      _VERSION=$(cat .version | cut -c 1-2)
+      _DOCKER_IMAGE_TAG=$(cat /workspace/.version)
+      _SRV_REGION=$(echo ${_REGION} | sed s/-//g)
+      _SECRET_FLAGS=$(cat deployment/cloudrun/env/secret-flags.txt)
+
+      if [[ "${_VERSION}" == "v1" ]]; then
+        _RUN_NAME=run-${_PROJECT}-${_SRV_ENV}-${_SRV_REGION}-${_SRV_NAME}-v1
+      elif [[ "${_VERSION}" == "v2" ]]; then
+        _RUN_NAME=run-${_PROJECT}-${_SRV_ENV}-${_SRV_REGION}-${_SRV_NAME}-v2
+      else
+        echo "${_VERSION} is not a valid version"
+        exit 1
+      fi
+
+      gcloud run deploy ${_RUN_NAME} \
+        --image ${_DOCKER_IMAGE_NAME}:${_DOCKER_IMAGE_TAG} \
+        --region ${_REGION} \
+        --concurrency ${_CONTAINER_CONCURRENCY} \
+        --timeout ${_TIMEOUT} \
+        --allow-unauthenticated \
+        --env-vars-file=deployment/cloudrun/env/.env_${_SRV_ENV} \
+        --service-account=${_SVC_ACCOUNT} \
+        --set-secrets=${_SECRET_FLAGS} \
+        --min-instances=${_MIN_INSTANCE} \
+        --max-instances=${_MAX_INSTANCE} \
+        --cpu=${_CPU} \
+        --memory=${_MEMORY} \
+        --vpc-egress=${_VPC_EGRESS} \
+        --network=${_NETWORK} \
+        --subnet=${_SUBNET} \
+        --cpu-boost \
+        --cpu-throttling \
+        --project=${_PROJECT_ID}
+
+logsBucket: ${_LOGS_BUCKET}
+substitutions:
+  _PROJECT: 'devops'
+  _REGION: 'us-west1'
+  _DOCKER_IMAGE_NAME: 'us-west1-docker.pkg.dev/polyhedra-networ-1678705134444/polyhedra/slack_alert'
+  _DOCKERFILE: 'deployment/docker/Dockerfile'
+  _LOGS_BUCKET: 'gs://storage-polyhedra-uswest1-cloudbuildlog'
+  _SRV_NAME: 'slack_alert'
+  _MIN_INSTANCE: '1'
+  _MAX_INSTANCE: '1'
+  _CONTAINER_CONCURRENCY: '80'
+  _TIMEOUT: '30s'
+  _CPU: '1'
+  _MEMORY: '512Mi'
+  _VPC_EGRESS: 'all-traffic'
+  _NETWORK: 'default'
+  _SUBNET: 'default'
+  _PROJECT_ID: 'polyhedra-networ-1678705134444'
+  _SVC_ACCOUNT: 'cloud-run-sa@polyhedra-networ-1678705134444.iam.gserviceaccount.com'
+options:
+  automapSubstitutions: true
